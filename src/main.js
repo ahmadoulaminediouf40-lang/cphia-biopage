@@ -247,9 +247,9 @@ async function showQr() {
 }
 
 function pathFromHash() {
-  const path = location.pathname.replace(/^\\/+|\\/+$/g, '');
+  const path = location.pathname.split('/').filter(Boolean).join('/');
   if (path) return path.split('/').filter(Boolean);
-  const raw = location.hash.replace(/^#\\/?/, '');
+  const raw = location.hash.startsWith('#/') ? location.hash.slice(2) : location.hash.replace('#', '');
   return raw.split('/').filter(Boolean);
 }
 
