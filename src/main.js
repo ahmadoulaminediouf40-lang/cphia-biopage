@@ -1,11 +1,9 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import QRCode from 'qrcode';
-import { createClient } from '@supabase/supabase-js';
+import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs';
+import QRCode from 'https://esm.sh/qrcode@1.5.4';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, API_URL, ADMIN_EMAIL } from './config.js';
-import './styles.css';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 const root = document.getElementById('app');
 const appState = { profile: null, slug: null, editToken: null, lang: 'en', previewMode: 'desktop', photoData: null, adminSession: null, publicProfile: null };
@@ -47,7 +45,7 @@ function setNotice(message, type = 'info') {
 }
 
 function brandBar() {
-  return '<header class="topbar"><a class="brand" href="#/"><span class="brand-mark">CB</span><span>CPHIA <b>BioPage</b></span></a><nav><a href="#/how-it-works">How it works</a><a href="#/admin" class="admin-link">Admin</a><button class="lang-toggle" data-action="global-lang">EN / FR</button></nav></header>';
+  return '<header class="topbar"><a class="brand" href="/"><span class="brand-mark">CB</span><span>CPHIA <b>BioPage</b></span></a><nav><a href="/how-it-works">How it works</a><a href="/admin" class="admin-link">Admin</a><button class="lang-toggle" data-action="global-lang">EN / FR</button></nav></header>';
 }
 
 function footer() {
@@ -242,14 +240,16 @@ function renderPublishModal() {
 }
 
 async function showQr() {
-  const url = location.origin + location.pathname + '#/p/' + appState.publicProfile.slug;
+  const url = location.origin + '/p/' + encodeURIComponent(appState.publicProfile.slug);
   const data = await QRCode.toDataURL(url, { width: 640, margin: 2, color: { dark: '#10243a', light: '#ffffff' } });
   openModal(appState.lang === 'en' ? 'Scan to connect' : 'Scanner pour se connecter', '<div class="qr-wrap"><img src="' + data + '" alt="Portfolio QR code" /></div><p class="qr-url">' + esc(url) + '</p><button class="button button-primary button-full" data-action="download-qr">Download QR code</button>');
   appState.qrData = data;
 }
 
 function pathFromHash() {
-  const raw = location.hash.replace(/^#\/?/, '');
+  const path = location.pathname.replace(/^\\/+|\\/+$/g, '');
+  if (path) return path.split('/').filter(Boolean);
+  const raw = location.hash.replace(/^#\\/?/, '');
   return raw.split('/').filter(Boolean);
 }
 
@@ -333,7 +333,8 @@ root.addEventListener('submit', async (event) => {
       appState.slug = result.slug;
       appState.editToken = result.editToken;
       appState.photoData = null;
-      location.hash = '#/edit/' + encodeURIComponent(result.slug) + '/' + encodeURIComponent(result.editToken);
+      history.pushState({}, '', '/edit/' + encodeURIComponent(result.slug) + '/' + encodeURIComponent(result.editToken));
+      renderEditor();
       setNotice('Portfolio généré. Vérifie et modifie chaque information avant publication.', 'success');
     } catch (error) {
       status.textContent = error.message;
@@ -348,7 +349,7 @@ root.addEventListener('submit', async (event) => {
     const email = text($('#admin-email').value).toLowerCase();
     if (email !== ADMIN_EMAIL.toLowerCase()) { status.textContent = 'Email non autorisé.'; return; }
     status.textContent = 'Sending secure sign-in link…';
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname + '#/admin' } });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + '/admin' } });
     status.textContent = error ? error.message : 'Lien envoyé. Ouvre ta boîte email pour te connecter.';
   }
 });
@@ -417,7 +418,7 @@ root.addEventListener('click', async (event) => {
       return;
     }
     if (action === 'copy-edit-link') {
-      const link = location.origin + location.pathname + '#/edit/' + encodeURIComponent(appState.slug) + '/' + encodeURIComponent(appState.editToken);
+      const link = location.origin + '/edit/' + encodeURIComponent(appState.slug) + '/' + encodeURIComponent(appState.editToken);
       await navigator.clipboard.writeText(link);
       setNotice('Lien privé copié. Garde-le confidentiel.', 'success');
       return;
@@ -431,7 +432,8 @@ root.addEventListener('click', async (event) => {
       const result = await callApi('publish', { slug: appState.slug, editToken: appState.editToken, activationCode: code });
       closeModal();
       setNotice('Portfolio publié avec succès.', 'success');
-      location.hash = '#/p/' + encodeURIComponent(result.slug);
+      history.pushState({}, '', '/p/' + encodeURIComponent(result.slug));
+      await renderPublicRoute(result.slug);
       return;
     }
     if (action === 'show-qr') return showQr();
@@ -463,4 +465,5 @@ supabase.auth.onAuthStateChange((_event, session) => {
   if (pathFromHash()[0] === 'admin') setTimeout(renderAdmin, 0);
 });
 window.addEventListener('hashchange', route);
+window.addEventListener('popstate', route);
 route();
