@@ -115,6 +115,8 @@ function renderEditorFields() {
   const field = (label, path, value, multiline = false) => '<label class="field"><span>' + label + '</span>' + (multiline ? '<textarea data-path="' + path + '" rows="3">' + esc(value) + '</textarea>' : '<input data-path="' + path + '" value="' + esc(value) + '" />') + '</label>';
   let html = '<div class="editor-block"><div class="editor-block-title"><span>01</span><b>Executive introduction</b></div>' +
     field('Full name', 'name', c.name || p.full_name || '') +
+    field('WhatsApp number', 'whatsapp', p.whatsapp || '') +
+    field('LinkedIn profile URL', 'linkedin', p.linkedin_url || '') +
     field('Impact headline · ' + lang.toUpperCase(), 'headline.' + lang, bilingual(c.headline)[lang] || '', true) +
     field('Executive summary · ' + lang.toUpperCase(), 'executive_summary.' + lang, bilingual(c.executive_summary)[lang] || '', true) + '</div>';
   html += '<div class="editor-block"><div class="editor-block-title"><span>02</span><b>Value pillars</b></div>';
@@ -188,6 +190,7 @@ function renderEditor() {
   root.innerHTML = brandBar() +
     '<main class="editor-shell"><div class="editor-heading"><div><div class="eyebrow">DRAFT WORKSPACE · PRIVATE</div><h1>Shape your <em>story.</em></h1><p>Every field is editable. Switch languages and review the live portfolio before saving or publishing.</p></div><span class="draft-badge">● UNPUBLISHED</span></div>' +
     '<div class="editor-layout"><section class="editor-panel"><div class="editor-toolbar"><div><b>Content editor</b><small>Changes are saved to your private draft</small></div><div class="language-switch"><button data-action="editor-lang" data-lang="en" class="' + (appState.lang === 'en' ? 'active' : '') + '">EN</button><button data-action="editor-lang" data-lang="fr" class="' + (appState.lang === 'fr' ? 'active' : '') + '">FR</button></div></div>' +
+    '<div class="editor-photo-control"><div><b>Profile portrait</b><small>Replace the photo shown on your public BioPage. Your new portrait is stored privately.</small></div><label class="upload-tile editor-photo-tile" for="photo-file"><span class="upload-icon">↑</span><b>Replace portrait</b><small>JPG, PNG or WebP · max. 5 MB</small><span id="photo-file-name" class="file-name">Choose a new photo</span><input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp" /></label></div>' +
     '<div class="editor-fields">' + renderEditorFields() + '</div><div class="editor-actions"><button class="button button-outline" data-action="save-draft">Save draft</button><button class="button button-primary" data-action="publish-open">Publish portfolio →</button></div><div class="edit-link-box"><b>Your private edit link</b><small>Keep this link to return to your draft. Anyone with the link can edit it.</small><button class="button button-quiet" data-action="copy-edit-link">Copy secure edit link</button></div></section>' +
     '<section class="preview-panel ' + (appState.previewMode === 'mobile' ? 'mobile-preview' : '') + '"><div class="preview-toolbar"><b>Live preview</b><div><button data-action="preview-device" data-mode="desktop" class="' + (appState.previewMode === 'desktop' ? 'active' : '') + '">Desktop</button><button data-action="preview-device" data-mode="mobile" class="' + (appState.previewMode === 'mobile' ? 'active' : '') + '">Mobile</button></div></div><div id="preview-frame" class="preview-frame">' + profilePreview(p) + '</div></section></div></main>' + footer();
 }
@@ -362,6 +365,10 @@ root.addEventListener('input', (event) => {
   } else if (path === 'name') {
     appState.profile.content.name = event.target.value;
     appState.profile.full_name = event.target.value;
+  } else if (path === 'whatsapp') {
+    appState.profile.whatsapp = event.target.value;
+  } else if (path === 'linkedin') {
+    appState.profile.linkedin_url = event.target.value;
   } else {
     setPath(appState.profile.content, path, event.target.value);
   }
@@ -372,12 +379,14 @@ root.addEventListener('input', (event) => {
 root.addEventListener('change', async (event) => {
   if (event.target.id === 'cv-file') $('#cv-file-name').textContent = event.target.files[0]?.name || 'Choose PDF';
   if (event.target.id === 'photo-file') {
-    $('#photo-file-name').textContent = event.target.files[0]?.name || 'Choose photo';
+    const photoName = $('#photo-file-name');
+    if (photoName) photoName.textContent = event.target.files[0]?.name || (appState.profile ? 'Choose a new photo' : 'Choose photo');
     if (appState.profile && event.target.files[0]) {
       try {
         appState.photoData = await compressPhoto(event.target.files[0]);
+        appState.profile.photo_url = appState.photoData;
         const frame = $('#preview-frame');
-        if (frame) frame.innerHTML = profilePreview({ ...appState.profile, photo_url: appState.photoData });
+        if (frame) frame.innerHTML = profilePreview(appState.profile);
       } catch (error) { setNotice(error.message, 'error'); }
     }
   }
@@ -410,7 +419,7 @@ root.addEventListener('click', async (event) => {
     }
     if (action === 'save-draft') {
       btn.disabled = true; btn.textContent = 'Saving…';
-      const result = await callApi('update-draft', { slug: appState.slug, editToken: appState.editToken, content: appState.profile.content, photoData: appState.photoData });
+      const result = await callApi('update-draft', { slug: appState.slug, editToken: appState.editToken, content: appState.profile.content, whatsapp: appState.profile.whatsapp, linkedin: appState.profile.linkedin_url, photoData: appState.photoData });
       if (result.photo_url) appState.profile.photo_url = result.photo_url;
       appState.photoData = null;
       setNotice('Brouillon enregistré.', 'success');
